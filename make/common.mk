@@ -171,6 +171,9 @@ ifeq ("$(CLANG_13_1_MINIMUM)", "YES")
   CC_WARNINGS += -Wno-unused-but-set-variable
 endif
 
+# Suppress bitwise-instead-of-logical warning added in newer Xcode versions
+CC_WARNINGS += -Wno-bitwise-instead-of-logical
+
 ifdef GCC_PREPROCESSOR_DEFINITIONS
 DEBUGFLAGS += $(GCC_PREPROCESSOR_DEFINITIONS:%=-D%)
 endif
