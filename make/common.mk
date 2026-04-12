@@ -173,6 +173,8 @@ endif
 
 # Suppress bitwise-instead-of-logical warning added in newer Xcode versions
 CC_WARNINGS += -Wno-bitwise-instead-of-logical
+# Suppress implicit-const-int-float-conversion warning added in newer Xcode versions
+CC_WARNINGS += -Wno-implicit-const-int-float-conversion
 
 ifdef GCC_PREPROCESSOR_DEFINITIONS
 DEBUGFLAGS += $(GCC_PREPROCESSOR_DEFINITIONS:%=-D%)
