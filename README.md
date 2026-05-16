@@ -1,74 +1,93 @@
-# J2ObjC: Java to Objective-C Translator and Runtime #
+# J2ObjC (Surfr Fork)
 
-**Project site:** <https://j2objc.org><br>
-**J2ObjC blog:** <https://j2objc.blogspot.com><br>
-**Questions and discussion:** <https://groups.google.com/group/j2objc-discuss>
+Fork of [google/j2objc](https://github.com/google/j2objc) — Google's open-source Java-to-Objective-C transpiler — customized for the Surfr project.
 
-### What J2ObjC Is ###
-J2ObjC is an open-source command-line tool from Google that translates
-Java source code to Objective-C for the iOS (iPhone/iPad) platform. This tool
-enables Java source to be part of an iOS application's build, as no editing
-of the generated files is necessary. The goal is to write an app's non-UI
-code (such as application logic and data models) in Java, which is then
-shared by web apps (using [GWT](http://www.gwtproject.org/)), Android apps,
-and iOS apps.
+## What Is J2ObjC
 
-J2ObjC supports most Java language and runtime features required by
-client-side application developers, including exceptions, inner and
-anonymous classes, generic types, threads and reflection. JUnit test
-translation and execution is also supported.
+J2ObjC is a command-line tool that translates Java source code to Objective-C for iOS and watchOS platforms. It enables Java code to be compiled directly into native Apple frameworks without manual editing of the generated files. The upstream project is documented at [j2objc.org](https://j2objc.org).
 
-J2ObjC is currently beta quality. Several Google projects rely on it, but
-when new projects first start working with it, they usually find new bugs
-to be fixed. If you run into issues with your project, please report them!
+J2ObjC supports most Java language features required by client-side applications: exceptions, inner/anonymous classes, generics, threads, and reflection.
 
-### What J2ObjC isn't ###
-J2ObjC does not provide any sort of platform-independent UI toolkit, nor are
-there any plans to do so in the future. We believe that iOS UI code needs to
-be written in Objective-C, Objective-C++ or Swift using Apple's iOS SDK (Android
-UIs using Android's API, web app UIs using GWT, etc.).
+## How This Fork Is Used (the `/algorithm` repo)
 
-J2ObjC cannot convert Android binary applications. Developers must have source
-code for their Android app, which they either own or are licensed to use.
-
-## Requirements ##
-
-* JDK 11
-* Mac workstation or laptop
-* OS X 10.12 or higher
-* Xcode 8 or higher
-
-## License ##
-
-This library is distributed under the Apache 2.0 license found in the
-[LICENSE](https://github.com/google/j2objc/blob/master/LICENSE) file.
-The protocol buffers library is distributed under the same BSD license as
-Google's protocol buffers. See its
-[README](https://github.com/protocolbuffers/protobuf/blob/master/README.md) and
-[LICENSE](https://github.com/protocolbuffers/protobuf/blob/master/LICENSE).
-
-## Running on GNU/Linux ##
-
-To build and run on GNU/Linux, install [the Darling project](http://www.darlinghq.org/), then following [its Compile and Run a Program example](https://wiki.darlinghq.org/what_to_try#compile_and_run_a_program). Please note that j2objc is only supported on iOS/macOS.
-
-## Artifact Signatures ##
-
-This project publishes some artifacts through Maven Central with a `groupId` of `com.google.j2objc`.
-These artifacts are currently signed with [the following PGP/GPG key]
-(https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xeb1b3de71713c9ec2e87cc26ee92349ad86de446):
+The [algorithm](https://github.com/thesurfrapp/algorithm) repository contains Surfr's core motion-detection and GPS-tracking algorithms, written in Java (`algo/`). The iOS build in `algorithm/ios/` uses **this fork's `dist/` output** as its transpiler toolchain:
 
 ```
-pub   rsa2048 2023-01-10 [SC] [expires: 2025-01-09]
-      EB1B3DE71713C9EC2E87CC26EE92349AD86DE446
-uid           [ unknown] Thomas Ball <tball@google.com>
-sub   rsa2048 2023-01-10 [E] [expires: 2025-01-09]
+J2OBJC_HOME = /Users/herbert/Documents/GitHub/j2objc/dist
 ```
 
-Older artifacts are signed with the following PGP/GPG key:
+During an Xcode build of the `SurfrFramework` target, each `.java` file in `algorithm/ios/Algorithm/` is transpiled to Objective-C via a build-phase script:
 
+```bash
+${J2OBJC_HOME}/j2objc \
+  -d ${DERIVED_FILE_DIR} \
+  -sourcepath ${SURFR_ALGO_HOME}/ios/Algorithm/ \
+  -classpath ${J2OBJC_HOME}/lib/j2objc_annotations.jar \
+  -use-arc --swift-friendly --no-package-directories -g \
+  ${INPUT_FILE_PATH}
 ```
-pub   rsa2048 2015-09-25 [SC]
-      B801E2F8EF035068EC1139CC29579F18FA8FD93B
-uid           [ unknown] Tom Ball <tball724@gmail.com>
-sub   rsa2048 2015-09-25 [E]
+
+The resulting `.h`/`.m` files are compiled into `SurfrFramework.xcframework` (for iPhone and Apple Watch), which the Surfr frontend app embeds as a linked framework.
+
+### What This Fork Provides
+
+| Artifact | Path | Purpose |
+|----------|------|---------|
+| `j2objc` CLI | `dist/j2objc` | Transpiles `.java` → `.h` + `.m` |
+| JRE runtime | `dist/frameworks/JRE.xcframework` | Provides Java standard library at runtime on iOS/watchOS |
+| Annotations JAR | `dist/lib/j2objc_annotations.jar` | Compile-time annotations for controlling translation |
+| Headers | `dist/include/` | Objective-C headers for the emulated JRE |
+
+### Why a Fork
+
+This fork adds **watchOS arm64 support** (`watchos64n` architecture) that is not available in upstream J2ObjC. See commit history for the specific patches.
+
+## Building
+
+Prerequisites: JDK 11, Apache Maven, Xcode.
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v11)
+export PATH=/opt/apache-maven-3.8.6/bin:$PATH
+
+make clean
+make -j8 dist
 ```
+
+To build only specific architectures (e.g. watchOS):
+
+```bash
+export J2OBJC_ARCHS="watchosv7k watchos64"
+make -j8 dist
+```
+
+Available architectures are listed in `make/common.mk`:
+`macosx`, `iphone64`, `iphone64e`, `watchosv7k`, `watchos64`, `watchos64n`, `watchsimulator`, `watchsimulator64`, `simulator`, `simulator64`, `maccatalyst`
+
+### Architecture Notes
+
+- Currently targeting watchOS 8+: use `watchosv7k` + `watchos64`
+- When targeting watchOS 9+: swap to `watchos64` + `watchos64n` (drop `watchosv7k`)
+- Do NOT build with all three (`watchosv7k` + `watchos64` + `watchos64n`) — the resulting libs become too large
+
+### Important
+
+- **Never** run `make all_dist` or `make dist_protobuf` — protobuf is not used and attempting to build it causes dependency issues.
+- The `JRE.xcframework` produced here is also embedded in the frontend project for header resolution.
+
+## Upstream
+
+- **Upstream repo:** https://github.com/google/j2objc
+- **Project site:** https://j2objc.org
+- **Build guide:** https://developers.google.com/j2objc/guides/building-j2objc (not always accurate)
+
+## Requirements
+
+- JDK 11
+- macOS 10.12+
+- Xcode 8+
+- Apache Maven 3.8+
+
+## License
+
+Distributed under the Apache 2.0 license. See [LICENSE](LICENSE).
